@@ -1,39 +1,45 @@
+version: '3.8'
+
 services:
- 
+  # Servicio MySQL Master
   dbmaster:
-    image: mysql:8.0.39
-    container_name: redsocialWORKCAST-mysqlMASTER
+    image: mysql:8.0
+    container_name: redsocialMafanike-mysqlMASTER
     command: --server-id=1 --log-bin=mysql-bin --binlog-format=row
     environment:
-      MYSQL_ROOT_PASSWORD: 1234567890
-      MYSQL_DATABASE: redsocialworkcast
-      MYSQL_USER: UAB
-      MYSQL_PASSWORD: 1234
+      MYSQL_ROOT_PASSWORD: nico1802
+      MYSQL_DATABASE: mafanike
+      MYSQL_USER: nicop
+      MYSQL_PASSWORD: nico1802
     ports:
-      - "3308:3306"
+      - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
-
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - monitoring_net
- 
+
+  # Servicio MySQL Slave
   dbSlave:
-    image: mysql:8.0.39
-    container_name: redsocialWORKCAST-mysqlSLAVE
+    image: mysql:8.0
+    container_name: redsocialMafanike-mysqlSLAVE
     depends_on:
       - dbmaster
     command: --server-id=2 --log-bin=mysql-bin --binlog-format=row
-    environment: 
-      MYSQL_ROOT_PASSWORD: 1234567890
-      MYSQL_DATABASE: redsocialworkcast
-      MYSQL_USER: UAB
-      MYSQL_PASSWORD: 1234
+    environment:
+      MYSQL_ROOT_PASSWORD: nico1802
+      MYSQL_DATABASE: mafanike
+      MYSQL_USER: nicop
+      MYSQL_PASSWORD: nico1802
     ports:
       - "3309:3306"
+    networks:
+      - monitoring_net
 
+  # Servicio Prometheus
   prometheus:
     image: prom/prometheus:latest
-    container_name: prometheusWorkcast
+    container_name: prometheusMafanike
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
     ports:
@@ -41,26 +47,53 @@ services:
     networks:
       - monitoring_net
     healthcheck:
-     test: ["CMD", "wget", "--spider", "http://localhost:9090/-/ready"]
-     interval: 30s
-     timeout: 10s
-     retries: 3
+      test: ["CMD", "wget", "--spider", "http://localhost:9090/-/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
+  # Servicio Grafana
   grafana:
     image: grafana/grafana:latest
-    container_name: grafanaWorkcast
+    container_name: grafanaMafanike
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin_password
+      - GF_SECURITY_ADMIN_PASSWORD=admin
     ports:
       - "3000:3000"
     depends_on:
       - prometheus
+    volumes:
+      - grafana_data:/var/lib/grafana
     networks:
       - monitoring_net
- 
+
+  # Servicio de Firewall (SSH)
+  mafanike_firewall:
+    image: alpine
+    container_name: mafanike_firewall
+    ports:
+      - "2222:22"
+    command: ["sh", "-c", "apk add --no-cache openssh && ssh-keygen -A && /usr/sbin/sshd -D"]
+    networks:
+      - monitoring_net
+
+  # Servicio de monitoreo con Nginx
+  mafanike_monitoreo:
+    image: nginx:latest
+    container_name: mafanike_monitoreo
+    ports:
+      - "80:80"
+    depends_on:
+      - prometheus
+      - grafana
+    networks:
+      - monitoring_net
 
 volumes:
   mysql_data:
+    driver: local
+  grafana_data:
+    driver: local
 
 networks:
   monitoring_net:
