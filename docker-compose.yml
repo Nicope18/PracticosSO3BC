@@ -36,6 +36,23 @@ services:
     networks:
       - monitoring_net
 
+  # Servicio MySQL Backup
+  dbBackup:
+    image: mysql:8.0
+    container_name: redsocialMafanike-mysqlBACKUP
+    command: --server-id=3 --log-bin=mysql-bin --binlog-format=row
+    environment:
+      MYSQL_ROOT_PASSWORD: nico1802
+      MYSQL_DATABASE: mafanike_backup
+      MYSQL_USER: nicop
+      MYSQL_PASSWORD: nico1802
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_backup_data:/var/lib/mysql
+    networks:
+      - monitoring_net
+
   # Servicio Prometheus
   prometheus:
     image: prom/prometheus:latest
@@ -67,16 +84,6 @@ services:
     networks:
       - monitoring_net
 
-  # Servicio de Firewall (SSH)
-  mafanike_firewall:
-    image: alpine
-    container_name: mafanike_firewall
-    ports:
-      - "2222:22"
-    command: ["sh", "-c", "apk add --no-cache openssh && ssh-keygen -A && /usr/sbin/sshd -D"]
-    networks:
-      - monitoring_net
-
   # Servicio de monitoreo con Nginx
   mafanike_monitoreo:
     image: nginx:latest
@@ -89,8 +96,42 @@ services:
     networks:
       - monitoring_net
 
+  # Servicio de Firewall (iptables)
+  mafanike_firewall:
+    image: alpine
+    container_name: mafanike_firewall
+    ports:
+      - "2222:22"
+    command:
+      - /bin/sh
+      - -c
+      - |
+        apk add --no-cache iptables openssh && \
+        ssh-keygen -A && \
+        /usr/sbin/sshd -D & \
+        iptables -F && \
+        iptables -X && \
+        iptables -P INPUT DROP && \
+        iptables -P FORWARD DROP && \
+        iptables -P OUTPUT ACCEPT && \
+        iptables -A INPUT -i lo -j ACCEPT && \
+        iptables -A OUTPUT -o lo -j ACCEPT && \
+        iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT && \
+        iptables -A INPUT -p tcp --dport 2222 -j ACCEPT && \
+        iptables -A INPUT -p tcp --dport 3306 -j ACCEPT && \
+        iptables -A INPUT -p tcp --dport 3307 -j ACCEPT && \
+        iptables -A INPUT -p tcp --dport 3309 -j ACCEPT && \
+        iptables -A INPUT -p tcp --dport 9090 -j ACCEPT && \
+        iptables -A INPUT -p tcp --dport 3000 -j ACCEPT && \
+        iptables -A INPUT -p tcp --dport 80 -j ACCEPT && \
+        iptables -A INPUT -j DROP
+    networks:
+      - monitoring_net
+
 volumes:
   mysql_data:
+    driver: local
+  mysql_backup_data:
     driver: local
   grafana_data:
     driver: local
@@ -98,4 +139,4 @@ volumes:
 networks:
   monitoring_net:
     driver: bridge
-  dmz:
+
